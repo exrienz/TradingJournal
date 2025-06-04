@@ -29,10 +29,12 @@
                         <a class="nav-link" href="/daily-entry">Daily Entry</a>
                     </li>
                 </ul>
+                {% if request.cookies.get('access_token') %}
                 <form class="d-flex ms-auto" action="/reset-data" method="post"
                       onsubmit="return confirm('Are you sure you want to reset all data? This cannot be undone.');">
                     <button class="btn btn-danger btn-sm" type="submit">Reset Data</button>
                 </form>
+                {% endif %}
             </div>
         </div>
     </nav>
