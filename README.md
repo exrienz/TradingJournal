@@ -2,7 +2,7 @@
 
 A minimal, secure trading journal web application built with FastAPI and MySQL. This application helps traders track their deposits, withdrawals, and daily trading performance while providing AI-powered insights using Google's Gemini AI.
 
-## Features
+## Feature
 
 - User authentication with JWT
 - Deposit and withdrawal tracking
