@@ -125,4 +125,16 @@ def get_daily_entry_by_date(db, user_id: int, date):
     return db.query(models.DailyEntry).filter(
         models.DailyEntry.user_id == user_id,
         models.DailyEntry.date == date
-    ).first() 
+    ).first()
+
+def reset_user_data(db: Session, user_id: int):
+    """Delete all trading data for the given user and reset balance."""
+    db.query(models.Deposit).filter(models.Deposit.user_id == user_id).delete(synchronize_session=False)
+    db.query(models.Withdrawal).filter(models.Withdrawal.user_id == user_id).delete(synchronize_session=False)
+    db.query(models.DailyEntry).filter(models.DailyEntry.user_id == user_id).delete(synchronize_session=False)
+
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if user:
+        user.active_balance = 0.0
+
+    db.commit()
