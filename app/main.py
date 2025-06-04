@@ -429,6 +429,15 @@ async def update_daily_entry(
         raise HTTPException(status_code=404, detail="Entry not found")
     return updated_entry
 
+
+@app.post("/reset-data")
+async def reset_data(
+    current_user: models.User = Depends(auth.get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    crud.reset_user_data(db, current_user.id)
+    return RedirectResponse(url="/dashboard", status_code=303)
+
 @app.get("/test")
 async def test():
     print("Test endpoint called")
