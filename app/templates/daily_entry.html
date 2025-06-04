@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="text-center">Daily Trading Entry</h3>
+            </div>
+            <div class="card-body">
+                {% if error %}
+                <div class="alert alert-danger" role="alert">
+                    {{ error }}
+                </div>
+                {% endif %}
+                
+                <form action="/daily-entry" method="post">
+                    <div class="mb-3">
+                        <label for="date" class="form-label">Date</label>
+                        <input type="date" class="form-control" id="date" name="date" required value="{{ entry.date if entry else '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="profit" class="form-label">Profit</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="profit" name="profit" step="0.01" min="0" value="{{ entry.profit if entry else 0 }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="loss" class="form-label">Loss</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="loss" name="loss" step="0.01" min="0" value="{{ entry.loss if entry else 0 }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="reason_profit" class="form-label">Reason for Profit</label>
+                        <textarea class="form-control" id="reason_profit" name="reason_profit" rows="3">{{ entry.reason_profit if entry else '' }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="reason_loss" class="form-label">Reason for Loss</label>
+                        <textarea class="form-control" id="reason_loss" name="reason_loss" rows="3">{{ entry.reason_loss if entry else '' }}</textarea>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Submit Entry</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Set default date to today if not pre-filled
+    const dateInput = document.getElementById('date');
+    if (!dateInput.value) {
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.value = today;
+    }
+    // Handle profit/loss input
+    const profitInput = document.getElementById('profit');
+    const lossInput = document.getElementById('loss');
+    function updateInputs() {
+        if (parseFloat(profitInput.value) > 0) {
+            lossInput.value = '0';
+        }
+        if (parseFloat(lossInput.value) > 0) {
+            profitInput.value = '0';
+        }
+    }
+    profitInput.addEventListener('input', updateInputs);
+    lossInput.addEventListener('input', updateInputs);
+});
+</script>
+{% endblock %} 

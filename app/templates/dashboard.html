@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Active Balance</h5>
+                    <h3 class="card-text">${{ "%.2f"|format(stats.active_balance) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Total Deposited</h5>
+                    <h3 class="card-text">${{ "%.2f"|format(stats.total_deposited) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Total Withdrawn</h5>
+                    <h3 class="card-text">${{ "%.2f"|format(stats.total_withdrawn) }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Total Profit</h5>
+                    <h3 class="card-text text-success">${{ "%.2f"|format(stats.total_profit) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Total Loss</h5>
+                    <h3 class="card-text text-danger">${{ "%.2f"|format(stats.total_loss) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Total P&L</h5>
+                    <h3 class="card-text {% if stats.total_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        ${{ "%.2f"|format(stats.total_pnl) }}
+                    </h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trading Calendar -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Trading Calendar</h5>
+                </div>
+                <div class="card-body">
+                    <div id="calendar" class="calendar-grid"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gemini Insights -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Trading Tips</h5>
+                </div>
+                <div class="card-body">
+                    <div>{{ trading_tips | safe }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Lessons Learned</h5>
+                </div>
+                <div class="card-body">
+                    <div>{{ lessons_learned | safe }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const entries = {{ monthly_entries|tojson }};
+    const calendar = document.getElementById('calendar');
+    
+    // Get current month and year
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    
+    // Create calendar header
+    const header = document.createElement('div');
+    header.className = 'calendar-header';
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    days.forEach(day => {
+        const dayElement = document.createElement('div');
+        dayElement.className = 'calendar-day-header';
+        dayElement.textContent = day;
+        header.appendChild(dayElement);
+    });
+    calendar.appendChild(header);
+
+    // Calculate days in month and starting day
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDay = firstDay.getDay();
+
+    // Build calendar rows
+    let currentRow = document.createElement('div');
+    currentRow.className = 'calendar-row';
+
+    // Empty days before the first of the month
+    for (let i = 0; i < startingDay; i++) {
+        const emptyDay = document.createElement('div');
+        emptyDay.className = 'calendar-day empty';
+        currentRow.appendChild(emptyDay);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        if ((currentRow.children.length) === 7) {
+            calendar.appendChild(currentRow);
+            currentRow = document.createElement('div');
+            currentRow.className = 'calendar-row';
+        }
+
+        const dayElement = document.createElement('div');
+        dayElement.className = 'calendar-day';
+        dayElement.textContent = day;
+
+        // Find entry for this day
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const entry = entries.find(e => e.date.startsWith(dateStr));
+
+        if (entry) {
+            if (entry.profit > 0) {
+                dayElement.classList.add('profit-day');
+                dayElement.title = `Profit: $${entry.profit}\nReason: ${entry.reason_profit || 'N/A'}`;
+            } else if (entry.loss > 0) {
+                dayElement.classList.add('loss-day');
+                dayElement.title = `Loss: $${entry.loss}\nReason: ${entry.reason_loss || 'N/A'}`;
+            }
+        }
+
+        // Make the day clickable
+        dayElement.style.cursor = 'pointer';
+        dayElement.addEventListener('click', function() {
+            window.location.href = `/daily-entry?date=${dateStr}`;
+        });
+
+        currentRow.appendChild(dayElement);
+    }
+
+    // Fill the last row with empty days if needed
+    while (currentRow.children.length < 7) {
+        const emptyDay = document.createElement('div');
+        emptyDay.className = 'calendar-day empty';
+        currentRow.appendChild(emptyDay);
+    }
+    calendar.appendChild(currentRow);
+});
+</script>
+{% endblock %} 
