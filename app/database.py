@@ -33,7 +33,5 @@ def get_db():
 
 def init_db():
     from . import models
-    # Drop all tables
-    models.Base.metadata.drop_all(bind=engine)
-    # Create all tables
-    models.Base.metadata.create_all(bind=engine) 
+    # Create tables if they do not exist
+    models.Base.metadata.create_all(bind=engine)
