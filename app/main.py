@@ -218,7 +218,7 @@ async def login(request: Request, db: Session = Depends(get_db)):
             samesite="lax"
         )
         return response
-        
+
     except Exception as e:
         print(f"Error: {str(e)}")
         import traceback
@@ -230,6 +230,13 @@ async def login(request: Request, db: Session = Depends(get_db)):
                 "error": f"Login failed: {str(e)}"
             }
         )
+
+
+@app.get("/logout")
+async def logout():
+    response = RedirectResponse(url="/")
+    response.delete_cookie("access_token")
+    return response
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(

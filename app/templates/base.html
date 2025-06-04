@@ -29,11 +29,18 @@
                         <a class="nav-link" href="/daily-entry">Daily Entry</a>
                     </li>
                 </ul>
-                {% if request.cookies.get('access_token') and not hide_reset %}
-                <form class="d-flex ms-auto" action="/reset-data" method="post"
-                      onsubmit="return confirm('Are you sure you want to reset all data? This cannot be undone.');">
-                    <button class="btn btn-danger btn-sm" type="submit">Reset Data</button>
-                </form>
+                {% if request.cookies.get('access_token') %}
+                <div class="d-flex ms-auto">
+                    {% if not hide_reset %}
+                    <form class="me-2" action="/reset-data" method="post"
+                          onsubmit="return confirm('Are you sure you want to reset all data? This cannot be undone.');">
+                        <button class="btn btn-danger btn-sm" type="submit">Reset Data</button>
+                    </form>
+                    {% endif %}
+                    {% if not hide_logout %}
+                    <a class="btn btn-outline-light btn-sm" href="/logout">Logout</a>
+                    {% endif %}
+                </div>
                 {% endif %}
             </div>
         </div>
