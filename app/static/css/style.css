@@ -239,4 +239,12 @@ body {
     font-weight: 600;
     margin-top: 1rem;
     margin-bottom: 1rem;
-} 
+}
+
+/* Loader */
+.loader-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem 0;
+}
