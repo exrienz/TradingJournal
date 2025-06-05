@@ -82,7 +82,12 @@
                     <h5 class="mb-0">Trading Tips</h5>
                 </div>
                 <div class="card-body">
-                    <div>{{ trading_tips | safe }}</div>
+                    <div id="trading-tips-loader" class="loader-container">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div id="trading-tips-content" style="display: none;"></div>
                 </div>
             </div>
         </div>
@@ -92,7 +97,12 @@
                     <h5 class="mb-0">Lessons Learned</h5>
                 </div>
                 <div class="card-body">
-                    <div>{{ lessons_learned | safe }}</div>
+                    <div id="lessons-learned-loader" class="loader-container">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div id="lessons-learned-content" style="display: none;"></div>
                 </div>
             </div>
         </div>
@@ -179,6 +189,24 @@ document.addEventListener('DOMContentLoaded', function() {
         currentRow.appendChild(emptyDay);
     }
     calendar.appendChild(currentRow);
+
+    // Fetch trading insights via AJAX
+    fetch('/insights')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('trading-tips-content').innerHTML = data.trading_tips;
+            document.getElementById('lessons-learned-content').innerHTML = data.lessons_learned;
+        })
+        .catch(() => {
+            document.getElementById('trading-tips-content').innerText = 'Failed to load insights.';
+            document.getElementById('lessons-learned-content').innerText = 'Failed to load insights.';
+        })
+        .finally(() => {
+            document.getElementById('trading-tips-loader').style.display = 'none';
+            document.getElementById('lessons-learned-loader').style.display = 'none';
+            document.getElementById('trading-tips-content').style.display = 'block';
+            document.getElementById('lessons-learned-content').style.display = 'block';
+        });
 });
 </script>
-{% endblock %} 
+{% endblock %}
