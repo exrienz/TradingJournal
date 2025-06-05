@@ -52,7 +52,10 @@ def get_gemini_insights(texts: list[str], prompt: str) -> str:
         response.raise_for_status()
         return response.json()["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
-        return f"Error getting insights: {str(e)}"
+        error_msg = str(e)
+        if api_key:
+            error_msg = error_msg.replace(api_key, "[REDACTED]")
+        return f"Error getting insights: {error_msg}"
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request, access_token: str = Cookie(None), db: Session = Depends(get_db)):
