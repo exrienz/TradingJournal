@@ -82,7 +82,12 @@
                     <h5 class="mb-0">Trading Tips</h5>
                 </div>
                 <div class="card-body">
-                    <div>{{ trading_tips | safe }}</div>
+                    <div id="trading-tips-loader" class="d-flex justify-content-center py-3">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div id="trading-tips" style="display:none;"></div>
                 </div>
             </div>
         </div>
@@ -92,7 +97,12 @@
                     <h5 class="mb-0">Lessons Learned</h5>
                 </div>
                 <div class="card-body">
-                    <div>{{ lessons_learned | safe }}</div>
+                    <div id="lessons-learned-loader" class="d-flex justify-content-center py-3">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div id="lessons-learned" style="display:none;"></div>
                 </div>
             </div>
         </div>
@@ -179,6 +189,23 @@ document.addEventListener('DOMContentLoaded', function() {
         currentRow.appendChild(emptyDay);
     }
     calendar.appendChild(currentRow);
+
+    // Fetch trading tips and lessons asynchronously
+    fetch('/api/insights')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('trading-tips').innerHTML = data.trading_tips;
+            document.getElementById('trading-tips-loader').style.display = 'none';
+            document.getElementById('trading-tips').style.display = 'block';
+            document.getElementById('lessons-learned').innerHTML = data.lessons_learned;
+            document.getElementById('lessons-learned-loader').style.display = 'none';
+            document.getElementById('lessons-learned').style.display = 'block';
+        })
+        .catch(err => {
+            console.error('Error fetching insights:', err);
+            document.getElementById('trading-tips-loader').innerHTML = '<p class="text-danger">Failed to load insights.</p>';
+            document.getElementById('lessons-learned-loader').innerHTML = '<p class="text-danger">Failed to load insights.</p>';
+        });
 });
 </script>
-{% endblock %} 
+{% endblock %}

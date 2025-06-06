@@ -278,27 +278,9 @@ async def dashboard(
         }
         entries_dict.append(entry_dict)
     
-    # Get Gemini insights
-    profit_reasons = [entry.reason_profit for entry in monthly_entries if entry.reason_profit]
-    loss_reasons = [entry.reason_loss for entry in monthly_entries if entry.reason_loss]
-    
-    if profit_reasons:
-        trading_tips_md = get_gemini_insights(
-            profit_reasons,
-            "You are a trading coach. Based on these reasons traders succeeded, generate a concise list of best-practice Trading Tips. Format your response in Markdown."
-        )
-        trading_tips = markdown.markdown(trading_tips_md)
-    else:
-        trading_tips = "No profit reasons submitted yet."
-    
-    if loss_reasons:
-        lessons_learned_md = get_gemini_insights(
-            loss_reasons,
-            "You are a trading mentor. Based on these reasons traders lost money, generate a concise Lessons Learned list of common mistakes and how to avoid them. Format your response in Markdown."
-        )
-        lessons_learned = markdown.markdown(lessons_learned_md)
-    else:
-        lessons_learned = "No loss reasons submitted yet."
+    # Insights are loaded asynchronously via AJAX
+    trading_tips = ""
+    lessons_learned = ""
     
     return templates.TemplateResponse(
         "dashboard.html",
@@ -310,6 +292,39 @@ async def dashboard(
             "lessons_learned": lessons_learned
         }
     )
+
+
+@app.get("/api/insights")
+async def api_insights(
+    current_user: models.User = Depends(auth.get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Return trading tips and lessons learned as HTML."""
+    now = datetime.utcnow()
+    monthly_entries = crud.get_monthly_entries(db, current_user.id, now.year, now.month)
+
+    profit_reasons = [entry.reason_profit for entry in monthly_entries if entry.reason_profit]
+    loss_reasons = [entry.reason_loss for entry in monthly_entries if entry.reason_loss]
+
+    if profit_reasons:
+        tips_md = get_gemini_insights(
+            profit_reasons,
+            "You are a trading coach. Based on these reasons traders succeeded, generate a concise list of best-practice Trading Tips. Format your response in Markdown.",
+        )
+        trading_tips = markdown.markdown(tips_md)
+    else:
+        trading_tips = "No profit reasons submitted yet."
+
+    if loss_reasons:
+        lessons_md = get_gemini_insights(
+            loss_reasons,
+            "You are a trading mentor. Based on these reasons traders lost money, generate a concise Lessons Learned list of common mistakes and how to avoid them. Format your response in Markdown.",
+        )
+        lessons_learned = markdown.markdown(lessons_md)
+    else:
+        lessons_learned = "No loss reasons submitted yet."
+
+    return {"trading_tips": trading_tips, "lessons_learned": lessons_learned}
 
 @app.get("/deposit", response_class=HTMLResponse)
 async def deposit_page(
