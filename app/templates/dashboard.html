@@ -191,8 +191,15 @@ document.addEventListener('DOMContentLoaded', function() {
     calendar.appendChild(currentRow);
 
     // Fetch trading insights via AJAX
-    fetch('/insights')
-        .then(response => response.json())
+    fetch('/insights', {
+            credentials: 'include'
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to fetch insights');
+            }
+            return response.json();
+        })
         .then(data => {
             document.getElementById('trading-tips-content').innerHTML = data.trading_tips;
             document.getElementById('lessons-learned-content').innerHTML = data.lessons_learned;
