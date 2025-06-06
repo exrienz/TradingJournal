@@ -21,6 +21,9 @@ load_dotenv()
 # Initialize database
 init_db()
 
+# Use secure cookies by default, can be disabled for local development
+SECURE_COOKIES = os.getenv("SECURE_COOKIES", "true").lower() == "true"
+
 app = FastAPI()
 templates = Jinja2Templates(directory="app/templates")
 
@@ -37,7 +40,7 @@ def set_csrf_cookie(response: HTMLResponse | RedirectResponse, token: str) -> No
         CSRF_COOKIE_NAME,
         token,
         httponly=True,
-        secure=True,
+        secure=SECURE_COOKIES,
         samesite="lax",
         max_age=1800,
     )
@@ -280,7 +283,7 @@ async def login(request: Request, db: Session = Depends(get_db)):
             httponly=True,
             max_age=1800,
             samesite="lax",
-            secure=True,
+            secure=SECURE_COOKIES,
         )
         new_token = generate_csrf_token()
         set_csrf_cookie(response, new_token)
