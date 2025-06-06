@@ -37,6 +37,7 @@ DB_PASSWORD=your_secure_password
 DB_NAME=trading_journal
 JWT_SECRET=your_jwt_secret_key
 GEMINI_API_KEY=your_gemini_api_key
+SECURE_COOKIES=true  # set to false when running over HTTP
 ```
 
 4. Build and start the containers:
