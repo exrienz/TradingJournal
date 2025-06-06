@@ -1,4 +1,4 @@
-# Trading Journal Web Application
+# Trading Journal Web Applications
 
 A minimal, secure trading journal web application built with FastAPI and MySQL. This application helps traders track their deposits, withdrawals, and daily trading performance while providing AI-powered insights using Google's Gemini AI.
 
