@@ -9,12 +9,13 @@ A minimal, secure trading journal web application built with FastAPI and MySQL. 
 - Daily trading entries with profit/loss tracking
 - Interactive monthly calendar view
 - Dashboard with key statistics
-- AI-powered trading tips and lessons learned using Gemini AI
+- AI-powered trading tips and lessons learned using Gemini AI (falls back to simple summaries if the API is unavailable)
 
 ## Prerequisites
 
 - Docker and Docker Compose
-- Google Gemini API key
+- Google Gemini API key (optional but recommended)
+- Without an API key the dashboard will generate basic summaries instead of AI responses
 
 ## Setup
 

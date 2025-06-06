@@ -10,6 +10,7 @@ import os
 from dotenv import load_dotenv
 from fastapi import Cookie
 import markdown  # Add this at the top with other imports
+from collections import Counter
 
 from . import models, schemas, crud, auth
 from .database import engine, get_db, init_db
@@ -27,9 +28,18 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # Gemini AI integration
 def get_gemini_insights(texts: list[str], prompt: str) -> str:
+    """Fetch insights from Gemini or fall back to a local summary."""
+
+    def _fallback() -> str:
+        counts = Counter(t.strip() for t in texts if t.strip())
+        if not counts:
+            return "No data available."
+        lines = [f"- {reason} ({count})" for reason, count in counts.most_common(5)]
+        return "\n".join(lines)
+
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        return "Gemini API key not configured"
+        return _fallback()
     
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
     
@@ -55,7 +65,8 @@ def get_gemini_insights(texts: list[str], prompt: str) -> str:
         error_msg = str(e)
         if api_key:
             error_msg = error_msg.replace(api_key, "[REDACTED]")
-        return f"Error getting insights: {error_msg}"
+        print(f"Gemini request failed: {error_msg}")
+        return _fallback()
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request, access_token: str = Cookie(None), db: Session = Depends(get_db)):
