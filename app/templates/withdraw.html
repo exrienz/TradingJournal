@@ -15,6 +15,7 @@
                 {% endif %}
                 
                 <form action="/withdraw" method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <div class="mb-3">
                         <label for="amount" class="form-label">Amount</label>
                         <div class="input-group">

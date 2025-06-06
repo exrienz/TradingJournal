@@ -3,6 +3,8 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
+import secrets
+import bleach
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import requests
@@ -19,11 +21,29 @@ load_dotenv()
 # Initialize database
 init_db()
 
+# Use secure cookies by default, can be disabled for local development
+SECURE_COOKIES = os.getenv("SECURE_COOKIES", "true").lower() == "true"
+
 app = FastAPI()
 templates = Jinja2Templates(directory="app/templates")
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+CSRF_COOKIE_NAME = "csrf_token"
+
+def generate_csrf_token() -> str:
+    return secrets.token_urlsafe(16)
+
+def set_csrf_cookie(response: HTMLResponse | RedirectResponse, token: str) -> None:
+    response.set_cookie(
+        CSRF_COOKIE_NAME,
+        token,
+        httponly=True,
+        secure=SECURE_COOKIES,
+        samesite="lax",
+        max_age=1800,
+    )
 
 # Gemini AI integration
 def get_gemini_insights(texts: list[str], prompt: str) -> str:
@@ -80,13 +100,22 @@ async def root(request: Request, access_token: str = Cookie(None), db: Session =
 
 @app.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
-    return templates.TemplateResponse("register.html", {"request": request})
+    token = generate_csrf_token()
+    response = templates.TemplateResponse(
+        "register.html", {"request": request, "csrf_token": token}
+    )
+    set_csrf_cookie(response, token)
+    return response
 
 @app.post("/register")
 async def register(request: Request, db: Session = Depends(get_db)):
     print("\n=== Registration Request ===")
     try:
         form = await request.form()
+        form_csrf = form.get("csrf_token")
+        cookie_csrf = request.cookies.get(CSRF_COOKIE_NAME)
+        if not form_csrf or form_csrf != cookie_csrf:
+            raise HTTPException(status_code=403, detail="Invalid CSRF token")
         print(f"Form data: {dict(form)}")
         
         email = form.get("email")
@@ -100,41 +129,53 @@ async def register(request: Request, db: Session = Depends(get_db)):
         
         if not email or not username or not password:
             print("Error: Missing required fields")
-            return templates.TemplateResponse(
+            token = generate_csrf_token()
+            response = templates.TemplateResponse(
                 "register.html",
                 {
                     "request": request,
                     "error": "All fields are required.",
                     "email": email,
-                    "username": username
-                }
+                    "username": username,
+                    "csrf_token": token,
+                },
             )
+            set_csrf_cookie(response, token)
+            return response
         
         # Check if email exists
         if crud.get_user_by_email(db, email=email):
             print(f"Error: Email {email} already exists")
-            return templates.TemplateResponse(
+            token = generate_csrf_token()
+            response = templates.TemplateResponse(
                 "register.html",
                 {
                     "request": request,
                     "error": "Email already registered.",
                     "email": email,
-                    "username": username
-                }
+                    "username": username,
+                    "csrf_token": token,
+                },
             )
+            set_csrf_cookie(response, token)
+            return response
         
         # Check if username exists
         if crud.get_user_by_username(db, username=username):
             print(f"Error: Username {username} already exists")
-            return templates.TemplateResponse(
+            token = generate_csrf_token()
+            response = templates.TemplateResponse(
                 "register.html",
                 {
                     "request": request,
                     "error": "Username already taken.",
                     "email": email,
-                    "username": username
-                }
+                    "username": username,
+                    "csrf_token": token,
+                },
             )
+            set_csrf_cookie(response, token)
+            return response
         
         print("Creating new user...")
         # Create user
@@ -143,32 +184,43 @@ async def register(request: Request, db: Session = Depends(get_db)):
         print(f"User created successfully with ID: {db_user.id}")
         
         print("Redirecting to login page...")
-        return RedirectResponse(url="/login?registered=1", status_code=303)
+        response = RedirectResponse(url="/login?registered=1", status_code=303)
+        new_token = generate_csrf_token()
+        set_csrf_cookie(response, new_token)
+        return response
         
     except Exception as e:
         print(f"Error: {str(e)}")
         import traceback
         print(f"Traceback:\n{traceback.format_exc()}")
-        return templates.TemplateResponse(
+        token = generate_csrf_token()
+        response = templates.TemplateResponse(
             "register.html",
             {
                 "request": request,
                 "error": f"Registration failed: {str(e)}",
                 "email": email if 'email' in locals() else None,
-                "username": username if 'username' in locals() else None
-            }
+                "username": username if 'username' in locals() else None,
+                "csrf_token": token,
+            },
         )
+        set_csrf_cookie(response, token)
+        return response
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     registered = request.query_params.get("registered")
-    return templates.TemplateResponse(
+    token = generate_csrf_token()
+    response = templates.TemplateResponse(
         "login.html",
         {
             "request": request,
-            "registered": registered
-        }
+            "registered": registered,
+            "csrf_token": token,
+        },
     )
+    set_csrf_cookie(response, token)
+    return response
 
 @app.post("/token")
 async def login(request: Request, db: Session = Depends(get_db)):
@@ -176,6 +228,10 @@ async def login(request: Request, db: Session = Depends(get_db)):
     try:
         form = await request.form()
         print(f"Form data: {dict(form)}")
+        form_csrf = form.get("csrf_token")
+        cookie_csrf = request.cookies.get(CSRF_COOKIE_NAME)
+        if not form_csrf or form_csrf != cookie_csrf:
+            raise HTTPException(status_code=403, detail="Invalid CSRF token")
         
         username = form.get("username")
         password = form.get("password")
@@ -185,24 +241,32 @@ async def login(request: Request, db: Session = Depends(get_db)):
         user = crud.get_user_by_username(db, username=username)
         if not user:
             print(f"User not found: {username}")
-            return templates.TemplateResponse(
+            token = generate_csrf_token()
+            response = templates.TemplateResponse(
                 "login.html",
                 {
                     "request": request,
-                    "error": "Incorrect username or password"
-                }
+                    "error": "Incorrect username or password",
+                    "csrf_token": token,
+                },
             )
+            set_csrf_cookie(response, token)
+            return response
         
         print(f"User found, verifying password...")
         if not auth.verify_password(password, user.hashed_password):
             print("Password verification failed")
-            return templates.TemplateResponse(
+            token = generate_csrf_token()
+            response = templates.TemplateResponse(
                 "login.html",
                 {
                     "request": request,
-                    "error": "Incorrect username or password"
-                }
+                    "error": "Incorrect username or password",
+                    "csrf_token": token,
+                },
             )
+            set_csrf_cookie(response, token)
+            return response
         
         print("Password verified successfully")
         access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -218,21 +282,28 @@ async def login(request: Request, db: Session = Depends(get_db)):
             value=f"Bearer {access_token}",
             httponly=True,
             max_age=1800,
-            samesite="lax"
+            samesite="lax",
+            secure=SECURE_COOKIES,
         )
+        new_token = generate_csrf_token()
+        set_csrf_cookie(response, new_token)
         return response
 
     except Exception as e:
         print(f"Error: {str(e)}")
         import traceback
         print(f"Traceback:\n{traceback.format_exc()}")
-        return templates.TemplateResponse(
+        token = generate_csrf_token()
+        response = templates.TemplateResponse(
             "login.html",
             {
                 "request": request,
-                "error": f"Login failed: {str(e)}"
-            }
+                "error": f"Login failed: {str(e)}",
+                "csrf_token": token,
+            },
         )
+        set_csrf_cookie(response, token)
+        return response
 
 
 @app.get("/logout")
@@ -269,14 +340,18 @@ async def dashboard(
             }
         )
 
-    return templates.TemplateResponse(
+    token = generate_csrf_token()
+    response = templates.TemplateResponse(
         "dashboard.html",
         {
             "request": request,
             "stats": stats,
             "monthly_entries": entries_dict,
+            "csrf_token": token,
         },
     )
+    set_csrf_cookie(response, token)
+    return response
 
 
 @app.get("/insights")
@@ -297,6 +372,12 @@ async def insights(
             "You are a trading coach. Based on these reasons traders succeeded, generate a concise list of best-practice Trading Tips. Format your response in Markdown.",
         )
         trading_tips = markdown.markdown(trading_tips_md)
+        trading_tips = bleach.clean(
+            trading_tips,
+            tags=bleach.sanitizer.ALLOWED_TAGS + ["p", "ul", "li", "strong", "em"],
+            attributes=bleach.sanitizer.ALLOWED_ATTRIBUTES,
+            strip=True,
+        )
     else:
         trading_tips = "No profit reasons submitted yet."
 
@@ -306,6 +387,12 @@ async def insights(
             "You are a trading mentor. Based on these reasons traders lost money, generate a concise Lessons Learned list of common mistakes and how to avoid them. Format your response in Markdown.",
         )
         lessons_learned = markdown.markdown(lessons_learned_md)
+        lessons_learned = bleach.clean(
+            lessons_learned,
+            tags=bleach.sanitizer.ALLOWED_TAGS + ["p", "ul", "li", "strong", "em"],
+            attributes=bleach.sanitizer.ALLOWED_ATTRIBUTES,
+            strip=True,
+        )
     else:
         lessons_learned = "No loss reasons submitted yet."
 
@@ -319,7 +406,12 @@ async def deposit_page(
     request: Request,
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
-    return templates.TemplateResponse("deposit.html", {"request": request})
+    token = generate_csrf_token()
+    response = templates.TemplateResponse(
+        "deposit.html", {"request": request, "csrf_token": token}
+    )
+    set_csrf_cookie(response, token)
+    return response
 
 @app.post("/deposit")
 async def create_deposit(
@@ -329,6 +421,10 @@ async def create_deposit(
 ):
     try:
         form = await request.form()
+        form_csrf = form.get("csrf_token")
+        cookie_csrf = request.cookies.get(CSRF_COOKIE_NAME)
+        if not form_csrf or form_csrf != cookie_csrf:
+            raise HTTPException(status_code=403, detail="Invalid CSRF token")
         amount = float(form.get("amount"))
         date_str = form.get("date")
         date = datetime.strptime(date_str, "%Y-%m-%d").date()
@@ -336,23 +432,35 @@ async def create_deposit(
         deposit = schemas.DepositCreate(amount=amount, date=date)
         result = crud.create_deposit(db=db, deposit=deposit, user_id=current_user.id)
         
-        return RedirectResponse(url="/dashboard", status_code=303)
+        response = RedirectResponse(url="/dashboard", status_code=303)
+        new_token = generate_csrf_token()
+        set_csrf_cookie(response, new_token)
+        return response
     except Exception as e:
         print(f"Error creating deposit: {str(e)}")
-        return templates.TemplateResponse(
+        token = generate_csrf_token()
+        response = templates.TemplateResponse(
             "deposit.html",
             {
                 "request": request,
-                "error": f"Failed to create deposit: {str(e)}"
-            }
+                "error": f"Failed to create deposit: {str(e)}",
+                "csrf_token": token,
+            },
         )
+        set_csrf_cookie(response, token)
+        return response
 
 @app.get("/withdraw", response_class=HTMLResponse)
 async def withdraw_page(
     request: Request,
     current_user: models.User = Depends(auth.get_current_active_user)
 ):
-    return templates.TemplateResponse("withdraw.html", {"request": request})
+    token = generate_csrf_token()
+    response = templates.TemplateResponse(
+        "withdraw.html", {"request": request, "csrf_token": token}
+    )
+    set_csrf_cookie(response, token)
+    return response
 
 @app.post("/withdraw")
 async def create_withdrawal(
@@ -362,6 +470,10 @@ async def create_withdrawal(
 ):
     try:
         form = await request.form()
+        form_csrf = form.get("csrf_token")
+        cookie_csrf = request.cookies.get(CSRF_COOKIE_NAME)
+        if not form_csrf or form_csrf != cookie_csrf:
+            raise HTTPException(status_code=403, detail="Invalid CSRF token")
         amount = float(form.get("amount"))
         date_str = form.get("date")
         date = datetime.strptime(date_str, "%Y-%m-%d").date()
@@ -369,16 +481,23 @@ async def create_withdrawal(
         withdrawal = schemas.WithdrawalCreate(amount=amount, date=date)
         result = crud.create_withdrawal(db=db, withdrawal=withdrawal, user_id=current_user.id)
         
-        return RedirectResponse(url="/dashboard", status_code=303)
+        response = RedirectResponse(url="/dashboard", status_code=303)
+        new_token = generate_csrf_token()
+        set_csrf_cookie(response, new_token)
+        return response
     except Exception as e:
         print(f"Error creating withdrawal: {str(e)}")
-        return templates.TemplateResponse(
+        token = generate_csrf_token()
+        response = templates.TemplateResponse(
             "withdraw.html",
             {
                 "request": request,
-                "error": f"Failed to create withdrawal: {str(e)}"
-            }
+                "error": f"Failed to create withdrawal: {str(e)}",
+                "csrf_token": token,
+            },
         )
+        set_csrf_cookie(response, token)
+        return response
 
 @app.get("/daily-entry", response_class=HTMLResponse)
 async def daily_entry_page(
@@ -404,7 +523,12 @@ async def daily_entry_page(
                 entry_data = {"date": date_str, "profit": 0, "loss": 0, "reason_profit": "", "reason_loss": ""}
         except Exception as e:
             entry_data = None
-    return templates.TemplateResponse("daily_entry.html", {"request": request, "entry": entry_data})
+    token = generate_csrf_token()
+    response = templates.TemplateResponse(
+        "daily_entry.html", {"request": request, "entry": entry_data, "csrf_token": token}
+    )
+    set_csrf_cookie(response, token)
+    return response
 
 @app.post("/daily-entry")
 async def create_daily_entry(
@@ -414,6 +538,10 @@ async def create_daily_entry(
 ):
     try:
         form = await request.form()
+        form_csrf = form.get("csrf_token")
+        cookie_csrf = request.cookies.get(CSRF_COOKIE_NAME)
+        if not form_csrf or form_csrf != cookie_csrf:
+            raise HTTPException(status_code=403, detail="Invalid CSRF token")
         date_str = form.get("date")
         date = datetime.strptime(date_str, "%Y-%m-%d").date()
         profit = float(form.get("profit", 0) or 0)
@@ -430,16 +558,23 @@ async def create_daily_entry(
         )
         result = crud.create_daily_entry(db=db, entry=entry, user_id=current_user.id)
         
-        return RedirectResponse(url="/dashboard", status_code=303)
+        response = RedirectResponse(url="/dashboard", status_code=303)
+        new_token = generate_csrf_token()
+        set_csrf_cookie(response, new_token)
+        return response
     except Exception as e:
         print(f"Error creating daily entry: {str(e)}")
-        return templates.TemplateResponse(
+        token = generate_csrf_token()
+        response = templates.TemplateResponse(
             "daily_entry.html",
             {
                 "request": request,
-                "error": f"Failed to create daily entry: {str(e)}"
-            }
+                "error": f"Failed to create daily entry: {str(e)}",
+                "csrf_token": token,
+            },
         )
+        set_csrf_cookie(response, token)
+        return response
 
 @app.put("/daily-entry/{entry_id}")
 async def update_daily_entry(
@@ -459,8 +594,16 @@ async def reset_data(
     current_user: models.User = Depends(auth.get_current_active_user),
     db: Session = Depends(get_db)
 ):
+    form = await request.form()
+    form_csrf = form.get("csrf_token") if form else None
+    cookie_csrf = request.cookies.get(CSRF_COOKIE_NAME)
+    if not form_csrf or form_csrf != cookie_csrf:
+        raise HTTPException(status_code=403, detail="Invalid CSRF token")
     crud.reset_user_data(db, current_user.id)
-    return RedirectResponse(url="/dashboard", status_code=303)
+    response = RedirectResponse(url="/dashboard", status_code=303)
+    new_token = generate_csrf_token()
+    set_csrf_cookie(response, new_token)
+    return response
 
 @app.get("/test")
 async def test():
