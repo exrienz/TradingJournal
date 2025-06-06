@@ -15,6 +15,7 @@
                 {% endif %}
                 
                 <form action="/daily-entry" method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <div class="mb-3">
                         <label for="date" class="form-label">Date</label>
                         <input type="date" class="form-control" id="date" name="date" required value="{{ entry.date if entry else '' }}">
