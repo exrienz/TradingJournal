@@ -440,7 +440,15 @@ async def create_daily_entry(
             reason_profit=reason_profit,
             reason_loss=reason_loss
         )
-        result = crud.create_daily_entry(db=db, entry=entry, user_id=current_user.id)
+
+        # If an entry for the given date already exists, update it instead of
+        # creating a new one. This prevents profit/loss values from being
+        # accumulated multiple times when the user edits a day.
+        existing = crud.get_daily_entry_by_date(db, current_user.id, date)
+        if existing:
+            result = crud.update_daily_entry(db=db, entry_id=existing.id, entry=entry, user_id=current_user.id)
+        else:
+            result = crud.create_daily_entry(db=db, entry=entry, user_id=current_user.id)
         
         return RedirectResponse(url="/dashboard", status_code=303)
     except Exception as e:
